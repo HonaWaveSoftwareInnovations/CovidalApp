@@ -1,8 +1,66 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // 👈 necesario para blur y BackdropFilter
+import 'dart:ui'; // Para el blur
+import 'package:cloud_firestore/cloud_firestore.dart'; // Firestore
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+import 'home.dart';
 
-class Login extends StatelessWidget {
+String encriptar(String texto) {
+  final bytes = utf8.encode(texto);
+  final digest = sha256.convert(bytes);
+  return digest.toString();
+}
+
+class Login extends StatefulWidget {
   const Login({super.key});
+
+  @override
+  State<Login> createState() => _LoginState();
+}
+
+class _LoginState extends State<Login> {
+  final TextEditingController _usuarioController = TextEditingController();
+  final TextEditingController _contrasenaController = TextEditingController();
+
+  Future<void> validarLogin() async {
+    final usuario = _usuarioController.text.trim();
+    final contrasena = encriptar(_contrasenaController.text.trim());
+
+    if (usuario.isEmpty || contrasena.isEmpty) {
+      _mostrarMensaje("Por favor, completa ambos campos.");
+      return;
+    }
+
+    try {
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('usuarios')
+              .where('usuario', isEqualTo: usuario)
+              .where('contrasena', isEqualTo: contrasena)
+              .get();
+      if (!mounted) return;
+
+      if (snapshot.docs.isNotEmpty) {
+        if (!mounted) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const Home()),
+          );
+        });
+      } else {
+        _mostrarMensaje("❌ Usuario o contraseña incorrectos.");
+      }
+    } catch (e) {
+      _mostrarMensaje("Error al conectar con la base de datos.");
+    }
+  }
+
+  void _mostrarMensaje(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensaje), backgroundColor: Colors.black87),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,10 +77,10 @@ class Login extends StatelessWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFF096ECD), // Azul fuerte
-                Color.fromARGB(176, 2, 104, 194), // Azul medio
-                Color.fromARGB(132, 2, 98, 177), // Azul claro
-                Color.fromARGB(255, 224, 71, 71), // Rojo degradado
+                Color(0xFF096ECD),
+                Color.fromARGB(176, 2, 104, 194),
+                Color.fromARGB(132, 2, 98, 177),
+                Color.fromARGB(255, 224, 71, 71),
               ],
               stops: [0.0, 0.32, 0.54, 1.0],
             ),
@@ -30,7 +88,6 @@ class Login extends StatelessWidget {
           child: SingleChildScrollView(
             child: Column(
               children: [
-                // 🏢 Imagen del edificio
                 SizedBox(
                   width: double.infinity,
                   height: screenHeight * 0.43,
@@ -39,15 +96,11 @@ class Login extends StatelessWidget {
                     fit: BoxFit.cover,
                   ),
                 ),
-
-                // 🟦 Borde gris
                 Container(
                   width: double.infinity,
                   height: 10,
                   color: const Color(0xFFD9D9D9),
                 ),
-
-                // 🟥 Logo COVIDAL
                 Center(
                   child: Image.asset(
                     'assets/images/Logo.png',
@@ -55,10 +108,7 @@ class Login extends StatelessWidget {
                     fit: BoxFit.contain,
                   ),
                 ),
-
                 SizedBox(height: screenHeight * 0.015),
-
-                // 🧱 Fondo vidrio con sombra y fondo claro detrás
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
                   child: Container(
@@ -77,7 +127,6 @@ class Login extends StatelessWidget {
                       borderRadius: BorderRadius.circular(30),
                       child: Stack(
                         children: [
-                          // Fondo vidrio
                           SizedBox(
                             width: double.infinity,
                             child: Image.asset(
@@ -85,8 +134,6 @@ class Login extends StatelessWidget {
                               fit: BoxFit.cover,
                             ),
                           ),
-
-                          // Contenido encima
                           Padding(
                             padding: EdgeInsets.symmetric(
                               horizontal: screenWidth * 0.05,
@@ -100,9 +147,8 @@ class Login extends StatelessWidget {
                                   height: screenHeight * 0.06,
                                 ),
                                 SizedBox(height: screenHeight * 0.025),
-
-                                // Campo Usuario
                                 TextField(
+                                  controller: _usuarioController,
                                   decoration: InputDecoration(
                                     hintText: 'Usuario',
                                     filled: true,
@@ -127,9 +173,8 @@ class Login extends StatelessWidget {
                                   ),
                                 ),
                                 SizedBox(height: screenHeight * 0.02),
-
-                                // Campo Contraseña
                                 TextField(
+                                  controller: _contrasenaController,
                                   obscureText: true,
                                   decoration: InputDecoration(
                                     hintText: 'Contraseña',
@@ -155,14 +200,7 @@ class Login extends StatelessWidget {
                                   ),
                                 ),
                                 SizedBox(height: screenHeight * 0.02),
-
-                                // Botón entrar animado
-                                AnimatedLoginButton(
-                                  onPressed: () {
-                                    // Acción login
-                                    print('Botón presionado');
-                                  },
-                                ),
+                                AnimatedLoginButton(onPressed: validarLogin),
                               ],
                             ),
                           ),
@@ -171,7 +209,6 @@ class Login extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 SizedBox(height: screenHeight * 0.05),
               ],
             ),
@@ -182,7 +219,7 @@ class Login extends StatelessWidget {
   }
 }
 
-// 🔘 Botón personalizado con animación instantánea al presionar
+// 🔘 Botón con animación visual al tocar
 class AnimatedLoginButton extends StatefulWidget {
   final VoidCallback onPressed;
 
@@ -214,9 +251,9 @@ class _AnimatedLoginButtonState extends State<AnimatedLoginButton>
   }
 
   void _triggerAnimation() async {
-    await _controller.forward(); // achica
+    await _controller.forward();
     await Future.delayed(const Duration(milliseconds: 50));
-    await _controller.reverse(); // vuelve
+    await _controller.reverse();
     widget.onPressed();
   }
 
