@@ -67,6 +67,10 @@ flutter:
       - assets/images/trabajador.png
       - assets/images/entrar.png
       - assets/images/vidrio.png
+      - assets/images/area.png
+      - assets/images/hotel.png
+      - assets/images/oficina.png
+      - assets/images/verificar.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
