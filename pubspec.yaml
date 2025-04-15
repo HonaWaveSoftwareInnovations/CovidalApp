@@ -71,6 +71,9 @@ flutter:
       - assets/images/hotel.png
       - assets/images/oficina.png
       - assets/images/verificar.png
+      - assets/images/guardar.png
+      - assets/images/eliminar.png
+      - assets/images/agregar.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
