@@ -1,33 +1,128 @@
 import 'package:flutter/material.dart';
 
-class EdificioPage extends StatelessWidget {
+class EdificioPage extends StatefulWidget {
   const EdificioPage({super.key});
 
-  final List<String> pisos = const [
-    'Planta Baja',
-    'Piso 1',
-    'Piso 2',
-    'Piso 3',
-    'Piso 4',
-    'Piso 5',
-    'Piso 6',
-    'Piso 7',
-    'Piso 8',
-    'Piso 9',
-    'Piso 10',
-    'Piso 11',
-    'Piso 12',
-    'Piso 13',
-    'Piso 14',
-    'Piso 15',
-    'Piso 16',
-    'Piso 17',
+  @override
+  State<EdificioPage> createState() => _EdificioPageState();
+}
+
+class _EdificioPageState extends State<EdificioPage> {
+  List<String> pisosDinamicos = [
     'Piso 18',
-    'Terraza',
+    'Piso 17',
+    'Piso 16',
+    'Piso 15',
+    'Piso 14',
+    'Piso 13',
+    'Piso 12',
+    'Piso 11',
+    'Piso 10',
+    'Piso 9',
+    'Piso 8',
+    'Piso 7',
+    'Piso 6',
+    'Piso 5',
+    'Piso 4',
+    'Piso 3',
+    'Piso 2',
+    'Piso 1',
   ];
+
+  final String terraza = 'Terraza';
+  final String plantaBaja = 'Planta Baja';
+  bool terrazaVisible = true;
+
+  String? pisoSeleccionado;
+
+  int _obtenerSiguienteNumero() {
+    final regex = RegExp(r'Piso (\d+)');
+    final numeros =
+        pisosDinamicos
+            .map((e) => regex.firstMatch(e))
+            .where((e) => e != null)
+            .map((e) => int.parse(e!.group(1)!))
+            .toList();
+
+    if (numeros.isEmpty) return 1;
+    return numeros.reduce((a, b) => a > b ? a : b) + 1;
+  }
+
+  void _agregarPiso() {
+    final nuevoNumero = _obtenerSiguienteNumero();
+    setState(() {
+      pisosDinamicos.insert(0, 'Piso $nuevoNumero');
+    });
+  }
+
+  void _eliminarPiso() {
+    if (pisoSeleccionado == null) return;
+
+    final esDinamico = pisosDinamicos.contains(pisoSeleccionado);
+    final esTerraza = pisoSeleccionado == terraza;
+
+    if (!esDinamico && !esTerraza) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Confirmar eliminación'),
+          content: Text(
+            '¿Estás seguro de eliminar el piso "$pisoSeleccionado"?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  pisoSeleccionado = null;
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  if (esDinamico) {
+                    pisosDinamicos.remove(pisoSeleccionado);
+                  } else if (esTerraza) {
+                    terrazaVisible = false;
+                  }
+                  pisoSeleccionado = null;
+                });
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _guardarCambios() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Función guardar aún no implementada')),
+    );
+  }
+
+  bool _esSeleccionado(String piso) {
+    return piso == pisoSeleccionado;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final List<String> listaParaMostrar = [
+      if (terrazaVisible) terraza,
+      ...pisosDinamicos,
+      plantaBaja,
+    ];
+
     return Scaffold(
       body: Stack(
         children: [
@@ -45,7 +140,7 @@ class EdificioPage extends StatelessWidget {
           SafeArea(
             child: Column(
               children: [
-                // AppBar personalizado
+                // AppBar
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Row(
@@ -80,39 +175,90 @@ class EdificioPage extends StatelessWidget {
                           padding: const EdgeInsets.only(left: 20),
                           child: ListView.builder(
                             padding: EdgeInsets.zero,
-                            itemCount: pisos.length,
+                            itemCount: listaParaMostrar.length,
                             itemBuilder: (context, index) {
-                              final piso = pisos.reversed.toList()[index];
+                              final piso = listaParaMostrar[index];
+                              final seleccionado = _esSeleccionado(piso);
+
                               return Padding(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 2,
                                 ),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color.fromARGB(255, 93, 180, 230),
-                                        Color.fromARGB(255, 57, 118, 165),
-                                      ],
+                                child: GestureDetector(
+                                  onTap: () {
+                                    if (_esSeleccionado(piso)) {
+                                      setState(() {
+                                        pisoSeleccionado = null;
+                                      });
+                                    } else {
+                                      // Futuro: Navegar a pantalla del piso
+                                    }
+                                  },
+                                  onLongPress: () {
+                                    if (piso != plantaBaja) {
+                                      setState(() {
+                                        pisoSeleccionado =
+                                            pisoSeleccionado == piso
+                                                ? null
+                                                : piso;
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient:
+                                          seleccionado
+                                              ? const LinearGradient(
+                                                colors: [
+                                                  Color.fromARGB(
+                                                    255,
+                                                    221,
+                                                    86,
+                                                    86,
+                                                  ),
+                                                  Color.fromARGB(
+                                                    255,
+                                                    231,
+                                                    81,
+                                                    81,
+                                                  ),
+                                                ],
+                                              )
+                                              : const LinearGradient(
+                                                colors: [
+                                                  Color.fromARGB(
+                                                    255,
+                                                    93,
+                                                    180,
+                                                    230,
+                                                  ),
+                                                  Color.fromARGB(
+                                                    255,
+                                                    57,
+                                                    118,
+                                                    165,
+                                                  ),
+                                                ],
+                                              ),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.red,
+                                        width: 1,
+                                      ),
                                     ),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.red,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 2,
-                                      horizontal: 50,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        piso,
-                                        style: const TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 2,
+                                        horizontal: 50,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          piso,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -124,7 +270,7 @@ class EdificioPage extends StatelessWidget {
                         ),
                       ),
 
-                      // Botones laterales
+                      // Botones
                       Expanded(
                         flex: 1,
                         child: Column(
@@ -133,19 +279,19 @@ class EdificioPage extends StatelessWidget {
                             _BotonAccion(
                               iconPath: 'assets/images/agregar.png',
                               texto: "Agregar",
-                              onTap: () {},
+                              onTap: _agregarPiso,
                             ),
                             const SizedBox(height: 20),
                             _BotonAccion(
                               iconPath: 'assets/images/eliminar.png',
                               texto: "Eliminar",
-                              onTap: () {},
+                              onTap: _eliminarPiso,
                             ),
                             const SizedBox(height: 20),
                             _BotonAccion(
                               iconPath: 'assets/images/guardar.png',
                               texto: "Guardar",
-                              onTap: () {},
+                              onTap: _guardarCambios,
                             ),
                           ],
                         ),
@@ -170,7 +316,6 @@ class EdificioPage extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Leyenda izquierda
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: const [
@@ -191,8 +336,6 @@ class EdificioPage extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(width: 20),
-
-                      // Grilla de estados
                       Expanded(
                         child: Wrap(
                           spacing: 8,
