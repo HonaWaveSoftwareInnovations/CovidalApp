@@ -1,6 +1,6 @@
 # covidal
 
-A new Flutter project.
+Covidal - Aplicación de gestión de medidas de aluminio y vidrio, asistencia del personal de instalación y reportes de medidas y asistencia.
 
 ## Getting Started
 
