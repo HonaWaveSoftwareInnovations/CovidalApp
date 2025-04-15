@@ -14,114 +14,123 @@ class Home extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
-      body: SafeArea(
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF096ECD),
-                Color.fromARGB(176, 2, 104, 194),
-                Color.fromARGB(132, 2, 98, 177),
-                Color.fromARGB(255, 224, 71, 71),
-              ],
-              stops: [0.0, 0.32, 0.54, 1.0],
+      body: Stack(
+        children: [
+          // Fondo degradado fijo
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF096ECD),
+                  Color.fromARGB(176, 2, 104, 194),
+                  Color.fromARGB(132, 2, 98, 177),
+                  Color.fromARGB(255, 224, 71, 71),
+                ],
+                stops: [0.0, 0.32, 0.54, 1.0],
+              ),
             ),
           ),
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  height: screenHeight * 0.43,
-                  child: Image.asset(
-                    'assets/images/LogoEdi.png',
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Container(
-                  width: double.infinity,
-                  height: 16,
-                  color: const Color(0xFFD9D9D9),
-                ),
-                Center(
-                  child: Image.asset(
-                    'assets/images/Logo.png',
-                    height: screenHeight * 0.1,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                SizedBox(height: screenHeight * 0.03),
 
-                // Botones principales
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-                  child: Column(
-                    children: [
-                      AnimatedHomeButton(
-                        iconPath: 'assets/images/oficina.png',
-                        label: 'Oficina',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const OficinaPage(),
-                            ),
-                          );
-                        },
-                      ),
-                      SizedBox(height: screenHeight * 0.02),
-                      AnimatedHomeButton(
-                        iconPath: 'assets/images/hotel.png',
-                        label: 'Edificio',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const EdificioPage(),
-                            ),
-                          );
-                        },
-                      ),
-                      SizedBox(height: screenHeight * 0.02),
-                      AnimatedHomeButton(
-                        iconPath: 'assets/images/verificar.png',
-                        label: 'Asistencia Edificio',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (context) => const AsistenciaEdificioPage(),
-                            ),
-                          );
-                        },
-                      ),
-                      SizedBox(height: screenHeight * 0.02),
-                      AnimatedHomeButton(
-                        iconPath: 'assets/images/area.png',
-                        label: 'Reportes Generales',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (context) => const ReportesGeneralesPage(),
-                            ),
-                          );
-                        },
-                      ),
-                      SizedBox(height: screenHeight * 0.04),
-                    ],
+          // Contenido principal
+          SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: screenHeight * 0.43,
+                    child: Image.asset(
+                      'assets/images/LogoEdi.png',
+                      fit: BoxFit.cover,
+                    ),
                   ),
-                ),
-              ],
+                  Container(
+                    width: double.infinity,
+                    height: 16,
+                    color: const Color(0xFFD9D9D9),
+                  ),
+                  Center(
+                    child: Image.asset(
+                      'assets/images/Logo.png',
+                      height: screenHeight * 0.1,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  SizedBox(height: screenHeight * 0.03),
+
+                  // Botones
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: screenWidth * 0.05,
+                    ),
+                    child: Column(
+                      children: [
+                        AnimatedHomeButton(
+                          iconPath: 'assets/images/oficina.png',
+                          label: 'Oficina',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const OficinaPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        SizedBox(height: screenHeight * 0.02),
+                        AnimatedHomeButton(
+                          iconPath: 'assets/images/hotel.png',
+                          label: 'Edificio',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const EdificioPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        SizedBox(height: screenHeight * 0.02),
+                        AnimatedHomeButton(
+                          iconPath: 'assets/images/verificar.png',
+                          label: 'Asistencia Edificio',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => const AsistenciaEdificioPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        SizedBox(height: screenHeight * 0.02),
+                        AnimatedHomeButton(
+                          iconPath: 'assets/images/area.png',
+                          label: 'Reportes Generales',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => const ReportesGeneralesPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        SizedBox(height: screenHeight * 0.04),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
