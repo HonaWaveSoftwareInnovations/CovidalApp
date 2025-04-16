@@ -15,6 +15,7 @@ class _EdificioPageState extends State<EdificioPage> {
   final String plantaBaja = 'Planta Baja';
   bool terrazaVisible = true;
   String? pisoSeleccionado;
+  bool _hayCambios = false; // <- NUEVO
 
   @override
   void initState() {
@@ -71,6 +72,7 @@ class _EdificioPageState extends State<EdificioPage> {
         'nombre': 'Piso $nuevoNumero',
         'estado': 'inactivo',
       });
+      _hayCambios = true; // <- NUEVO
     });
   }
 
@@ -113,6 +115,7 @@ class _EdificioPageState extends State<EdificioPage> {
                     terrazaVisible = false;
                   }
                   pisoSeleccionado = null;
+                  _hayCambios = true; // <- NUEVO
                 });
                 Navigator.pop(context);
               },
@@ -164,9 +167,45 @@ class _EdificioPageState extends State<EdificioPage> {
       });
     }
 
+    setState(() {
+      _hayCambios = false; // <- NUEVO
+    });
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Pisos guardados en Firestore')),
     );
+  }
+
+  Future<void> _confirmarSalir(VoidCallback accion) async {
+    if (_hayCambios) {
+      final salir = await showDialog<bool>(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Cambios sin guardar'),
+              content: const Text(
+                'Tienes cambios sin guardar. ¿Deseas guardarlos antes de salir?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Guardar y salir'),
+                ),
+              ],
+            ),
+      );
+
+      if (salir == true) {
+        await _guardarEnFirestore();
+        accion();
+      }
+    } else {
+      accion();
+    }
   }
 
   bool _esSeleccionado(String piso) {
@@ -202,9 +241,10 @@ class _EdificioPageState extends State<EdificioPage> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.arrow_back, color: Colors.black),
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
+                        onPressed:
+                            () => _confirmarSalir(() {
+                              Navigator.pop(context);
+                            }),
                       ),
                       const Spacer(),
                       const Text(
@@ -257,7 +297,6 @@ class _EdificioPageState extends State<EdificioPage> {
                                       );
                                     }
                                   },
-
                                   onLongPress: () {
                                     if (nombre != plantaBaja) {
                                       setState(() {

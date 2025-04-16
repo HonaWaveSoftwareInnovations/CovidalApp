@@ -53,8 +53,18 @@ class _DepartamentosPageState extends State<DepartamentosPage> {
   void _agregarDepartamento(String seccion) {
     setState(() {
       final lista = seccion == 'A' ? seccionA : seccionB;
-      final numero = lista.length + 1;
-      lista.add('$seccion$numero');
+
+      // Obtener el mayor número actual en la lista
+      int maxNumero = 0;
+      for (var dep in lista) {
+        final numero = int.tryParse(dep.replaceAll(seccion, '')) ?? 0;
+        if (numero > maxNumero) {
+          maxNumero = numero;
+        }
+      }
+
+      final nuevoNombre = '$seccion${maxNumero + 1}';
+      lista.add(nuevoNombre);
       _hayCambios = true;
     });
   }
