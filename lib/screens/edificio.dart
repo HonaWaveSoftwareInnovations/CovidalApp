@@ -43,7 +43,6 @@ class _EdificioPageState extends State<EdificioPage> {
             .where((e) => e != null)
             .map((e) => int.parse(e!.group(1)!))
             .toList();
-
     if (numeros.isEmpty) return 1;
     return numeros.reduce((a, b) => a > b ? a : b) + 1;
   }
@@ -126,7 +125,6 @@ class _EdificioPageState extends State<EdificioPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // Fondo degradado
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -136,11 +134,9 @@ class _EdificioPageState extends State<EdificioPage> {
               ),
             ),
           ),
-
           SafeArea(
             child: Column(
               children: [
-                // AppBar
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Row(
@@ -164,8 +160,6 @@ class _EdificioPageState extends State<EdificioPage> {
                     ],
                   ),
                 ),
-
-                // Lista de pisos y botones
                 Expanded(
                   child: Row(
                     children: [
@@ -190,8 +184,6 @@ class _EdificioPageState extends State<EdificioPage> {
                                       setState(() {
                                         pisoSeleccionado = null;
                                       });
-                                    } else {
-                                      // Futuro: Navegar a pantalla del piso
                                     }
                                   },
                                   onLongPress: () {
@@ -269,8 +261,6 @@ class _EdificioPageState extends State<EdificioPage> {
                           ),
                         ),
                       ),
-
-                      // Botones
                       Expanded(
                         flex: 1,
                         child: Column(
@@ -299,15 +289,11 @@ class _EdificioPageState extends State<EdificioPage> {
                     ],
                   ),
                 ),
-
-                // Franja gris
                 Container(
                   width: double.infinity,
                   height: 14,
                   color: const Color(0xFFD9D9D9),
                 ),
-
-                // Leyenda y grilla
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -340,29 +326,22 @@ class _EdificioPageState extends State<EdificioPage> {
                         child: Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: List.generate(20, (index) {
-                            final nombres = [
-                              '1',
-                              '2',
-                              '3',
-                              '4',
-                              '5',
-                              '6',
-                              '7',
-                              '8',
-                              '9',
-                              '10',
-                              '11',
-                              '12',
-                              '13',
-                              '14',
-                              '15',
-                              '16',
-                              '17',
-                              '18',
-                              'PB',
-                              'T',
-                            ];
+                          children: List.generate(listaParaMostrar.length, (
+                            index,
+                          ) {
+                            final piso = listaParaMostrar[index];
+                            String texto;
+
+                            if (piso == plantaBaja) {
+                              texto = 'PB';
+                            } else if (piso == terraza) {
+                              texto = 'T';
+                            } else {
+                              final match = RegExp(
+                                r'Piso (\d+)',
+                              ).firstMatch(piso);
+                              texto = match != null ? match.group(1)! : piso;
+                            }
 
                             Color fondo;
                             if (index < 8) {
@@ -384,7 +363,7 @@ class _EdificioPageState extends State<EdificioPage> {
                                 border: Border.all(color: Colors.red, width: 1),
                               ),
                               child: Text(
-                                nombres[index],
+                                texto,
                                 style: const TextStyle(
                                   color: Colors.black,
                                   fontWeight: FontWeight.bold,
