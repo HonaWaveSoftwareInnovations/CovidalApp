@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class EdificioPage extends StatefulWidget {
   const EdificioPage({super.key});
@@ -8,38 +9,53 @@ class EdificioPage extends StatefulWidget {
 }
 
 class _EdificioPageState extends State<EdificioPage> {
-  List<String> pisosDinamicos = [
-    'Piso 18',
-    'Piso 17',
-    'Piso 16',
-    'Piso 15',
-    'Piso 14',
-    'Piso 13',
-    'Piso 12',
-    'Piso 11',
-    'Piso 10',
-    'Piso 9',
-    'Piso 8',
-    'Piso 7',
-    'Piso 6',
-    'Piso 5',
-    'Piso 4',
-    'Piso 3',
-    'Piso 2',
-    'Piso 1',
-  ];
-
+  List<Map<String, dynamic>> pisosDinamicos = [];
   final String terraza = 'Terraza';
   final String plantaBaja = 'Planta Baja';
   bool terrazaVisible = true;
-
   String? pisoSeleccionado;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDesdeFirestore();
+  }
+
+  Future<void> _cargarDesdeFirestore() async {
+    final firestore = FirebaseFirestore.instance;
+    final pisosRef = firestore
+        .collection('edificios')
+        .doc('principal')
+        .collection('pisos');
+    final snapshot = await pisosRef.orderBy('orden').get();
+
+    List<Map<String, dynamic>> nuevosPisos = [];
+    bool terrazaEstaVisible = false;
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final nombre = data['nombre'] ?? '';
+      final visible = data['visible'] ?? true;
+      final estado = data['estado'] ?? 'inactivo';
+
+      if (nombre == terraza) {
+        terrazaEstaVisible = visible;
+      } else if (nombre != plantaBaja) {
+        nuevosPisos.add({'nombre': nombre, 'estado': estado});
+      }
+    }
+
+    setState(() {
+      terrazaVisible = terrazaEstaVisible;
+      pisosDinamicos = nuevosPisos;
+    });
+  }
 
   int _obtenerSiguienteNumero() {
     final regex = RegExp(r'Piso (\d+)');
     final numeros =
         pisosDinamicos
-            .map((e) => regex.firstMatch(e))
+            .map((e) => regex.firstMatch(e['nombre']))
             .where((e) => e != null)
             .map((e) => int.parse(e!.group(1)!))
             .toList();
@@ -50,14 +66,19 @@ class _EdificioPageState extends State<EdificioPage> {
   void _agregarPiso() {
     final nuevoNumero = _obtenerSiguienteNumero();
     setState(() {
-      pisosDinamicos.insert(0, 'Piso $nuevoNumero');
+      pisosDinamicos.insert(0, {
+        'nombre': 'Piso $nuevoNumero',
+        'estado': 'inactivo',
+      });
     });
   }
 
   void _eliminarPiso() {
     if (pisoSeleccionado == null) return;
 
-    final esDinamico = pisosDinamicos.contains(pisoSeleccionado);
+    final esDinamico = pisosDinamicos.any(
+      (p) => p['nombre'] == pisoSeleccionado,
+    );
     final esTerraza = pisoSeleccionado == terraza;
 
     if (!esDinamico && !esTerraza) return;
@@ -84,7 +105,9 @@ class _EdificioPageState extends State<EdificioPage> {
               onPressed: () {
                 setState(() {
                   if (esDinamico) {
-                    pisosDinamicos.remove(pisoSeleccionado);
+                    pisosDinamicos.removeWhere(
+                      (p) => p['nombre'] == pisoSeleccionado,
+                    );
                   } else if (esTerraza) {
                     terrazaVisible = false;
                   }
@@ -105,8 +128,43 @@ class _EdificioPageState extends State<EdificioPage> {
   }
 
   void _guardarCambios() {
+    _guardarEnFirestore();
+  }
+
+  Future<void> _guardarEnFirestore() async {
+    final firestore = FirebaseFirestore.instance;
+    final pisosRef = firestore
+        .collection('edificios')
+        .doc('principal')
+        .collection('pisos');
+
+    final snapshot = await pisosRef.get();
+    for (var doc in snapshot.docs) {
+      await doc.reference.delete();
+    }
+
+    final listaParaGuardar = [
+      if (terrazaVisible) {'nombre': terraza, 'estado': 'inactivo'},
+      ...pisosDinamicos,
+      {'nombre': plantaBaja, 'estado': 'inactivo'},
+    ];
+
+    for (int i = 0; i < listaParaGuardar.length; i++) {
+      final piso = listaParaGuardar[i];
+      final nombre = piso['nombre'];
+      final estado = piso['estado'];
+      final id = nombre.toLowerCase().replaceAll(' ', '_');
+
+      await pisosRef.doc(id).set({
+        'nombre': nombre,
+        'orden': i,
+        'estado': estado,
+        'visible': true,
+      });
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Función guardar aún no implementada')),
+      const SnackBar(content: Text('Pisos guardados en Firestore')),
     );
   }
 
@@ -116,10 +174,10 @@ class _EdificioPageState extends State<EdificioPage> {
 
   @override
   Widget build(BuildContext context) {
-    final List<String> listaParaMostrar = [
-      if (terrazaVisible) terraza,
+    final List<Map<String, dynamic>> listaParaMostrar = [
+      if (terrazaVisible) {'nombre': terraza, 'estado': 'inactivo'},
       ...pisosDinamicos,
-      plantaBaja,
+      {'nombre': plantaBaja, 'estado': 'inactivo'},
     ];
 
     return Scaffold(
@@ -172,89 +230,32 @@ class _EdificioPageState extends State<EdificioPage> {
                             itemCount: listaParaMostrar.length,
                             itemBuilder: (context, index) {
                               final piso = listaParaMostrar[index];
-                              final seleccionado = _esSeleccionado(piso);
+                              final nombre = piso['nombre'];
+                              final seleccionado = _esSeleccionado(nombre);
 
                               return Padding(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 2,
                                 ),
-                                child: GestureDetector(
+                                child: _PisoItemAnimado(
+                                  nombre: nombre,
+                                  seleccionado: seleccionado,
+                                  esPlantaBaja: nombre == plantaBaja,
                                   onTap: () {
-                                    if (_esSeleccionado(piso)) {
-                                      setState(() {
-                                        pisoSeleccionado = null;
-                                      });
+                                    if (_esSeleccionado(nombre)) {
+                                      setState(() => pisoSeleccionado = null);
                                     }
                                   },
                                   onLongPress: () {
-                                    if (piso != plantaBaja) {
+                                    if (nombre != plantaBaja) {
                                       setState(() {
                                         pisoSeleccionado =
-                                            pisoSeleccionado == piso
+                                            pisoSeleccionado == nombre
                                                 ? null
-                                                : piso;
+                                                : nombre;
                                       });
                                     }
                                   },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      gradient:
-                                          seleccionado
-                                              ? const LinearGradient(
-                                                colors: [
-                                                  Color.fromARGB(
-                                                    255,
-                                                    221,
-                                                    86,
-                                                    86,
-                                                  ),
-                                                  Color.fromARGB(
-                                                    255,
-                                                    231,
-                                                    81,
-                                                    81,
-                                                  ),
-                                                ],
-                                              )
-                                              : const LinearGradient(
-                                                colors: [
-                                                  Color.fromARGB(
-                                                    255,
-                                                    93,
-                                                    180,
-                                                    230,
-                                                  ),
-                                                  Color.fromARGB(
-                                                    255,
-                                                    57,
-                                                    118,
-                                                    165,
-                                                  ),
-                                                ],
-                                              ),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: Colors.red,
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 2,
-                                        horizontal: 50,
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          piso,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
                                 ),
                               );
                             },
@@ -330,28 +331,33 @@ class _EdificioPageState extends State<EdificioPage> {
                             index,
                           ) {
                             final piso = listaParaMostrar[index];
-                            String texto;
+                            final nombre = piso['nombre'];
+                            final estado = piso['estado'];
 
-                            if (piso == plantaBaja) {
+                            String texto;
+                            if (nombre == plantaBaja) {
                               texto = 'PB';
-                            } else if (piso == terraza) {
+                            } else if (nombre == terraza) {
                               texto = 'T';
                             } else {
                               final match = RegExp(
                                 r'Piso (\d+)',
-                              ).firstMatch(piso);
-                              texto = match != null ? match.group(1)! : piso;
+                              ).firstMatch(nombre);
+                              texto = match != null ? match.group(1)! : nombre;
                             }
 
                             Color fondo;
-                            if (index < 8) {
-                              fondo = const Color(0xFFE04747);
-                            } else if (index < 12) {
-                              fondo = const Color(0xFF88BFFF);
-                            } else if (index < 16) {
-                              fondo = const Color(0xFF9CEC8B);
-                            } else {
-                              fondo = const Color(0xFF88BFFF);
+                            switch (estado) {
+                              case 'activo':
+                                fondo = const Color(0xFF88BFFF);
+                                break;
+                              case 'listo':
+                                fondo = const Color(0xFF9CEC8B);
+                                break;
+                              case 'inactivo':
+                              default:
+                                fondo = const Color(0xFFE04747);
+                                break;
                             }
 
                             return Container(
@@ -385,7 +391,8 @@ class _EdificioPageState extends State<EdificioPage> {
   }
 }
 
-class _BotonAccion extends StatelessWidget {
+// BOTÓN ANIMADO
+class _BotonAccion extends StatefulWidget {
   final String iconPath;
   final String texto;
   final VoidCallback onTap;
@@ -397,39 +404,142 @@ class _BotonAccion extends StatelessWidget {
   });
 
   @override
+  State<_BotonAccion> createState() => _BotonAccionState();
+}
+
+class _BotonAccionState extends State<_BotonAccion>
+    with SingleTickerProviderStateMixin {
+  double _scale = 1.0;
+
+  void _animar() async {
+    setState(() => _scale = 0.9);
+    await Future.delayed(const Duration(milliseconds: 100));
+    setState(() => _scale = 1.0);
+    await Future.delayed(const Duration(milliseconds: 100));
+    widget.onTap();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 90,
-        padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color.fromARGB(255, 38, 154, 221), Color(0xFFE04747)],
-          ),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Color.fromARGB(255, 158, 73, 73), width: 1),
-        ),
-        child: Column(
-          children: [
-            Image.asset(iconPath, height: 35, fit: BoxFit.contain),
-            const SizedBox(height: 5),
-            Text(
-              texto,
-              style: const TextStyle(
-                color: Color.fromARGB(255, 0, 0, 0),
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-              textAlign: TextAlign.center,
+      onTap: _animar,
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 150),
+        scale: _scale,
+        child: Container(
+          width: 90,
+          padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color.fromARGB(255, 38, 154, 221), Color(0xFFE04747)],
             ),
-          ],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Color.fromARGB(255, 158, 73, 73),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Image.asset(widget.iconPath, height: 35, fit: BoxFit.contain),
+              const SizedBox(height: 5),
+              Text(
+                widget.texto,
+                style: const TextStyle(
+                  color: Color.fromARGB(255, 0, 0, 0),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
+// PISO ANIMADO
+class _PisoItemAnimado extends StatefulWidget {
+  final String nombre;
+  final bool seleccionado;
+  final bool esPlantaBaja;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  const _PisoItemAnimado({
+    required this.nombre,
+    required this.seleccionado,
+    required this.esPlantaBaja,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  @override
+  State<_PisoItemAnimado> createState() => _PisoItemAnimadoState();
+}
+
+class _PisoItemAnimadoState extends State<_PisoItemAnimado> {
+  double _scale = 1.0;
+
+  void _animar(VoidCallback callback) async {
+    setState(() => _scale = 0.9);
+    await Future.delayed(const Duration(milliseconds: 100));
+    setState(() => _scale = 1.0);
+    await Future.delayed(const Duration(milliseconds: 100));
+    callback();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gradient =
+        widget.seleccionado
+            ? const LinearGradient(
+              colors: [
+                Color.fromARGB(255, 221, 86, 86),
+                Color.fromARGB(255, 231, 81, 81),
+              ],
+            )
+            : const LinearGradient(
+              colors: [
+                Color.fromARGB(255, 93, 180, 230),
+                Color.fromARGB(255, 57, 118, 165),
+              ],
+            );
+
+    return GestureDetector(
+      onTap: () => _animar(widget.onTap),
+      onLongPress: () => _animar(widget.onLongPress),
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 150),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.red, width: 1),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 50),
+          child: Center(
+            child: Text(
+              widget.nombre,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// CÍRCULOS DE COLOR
 class _ColorIndicadorFila extends StatelessWidget {
   final Color color;
   final String label;
