@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'departamentos.dart';
 
 class EdificioPage extends StatefulWidget {
   const EdificioPage({super.key});
@@ -244,8 +245,19 @@ class _EdificioPageState extends State<EdificioPage> {
                                   onTap: () {
                                     if (_esSeleccionado(nombre)) {
                                       setState(() => pisoSeleccionado = null);
+                                    } else {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) => DepartamentosPage(
+                                                nombrePiso: nombre,
+                                              ),
+                                        ),
+                                      );
                                     }
                                   },
+
                                   onLongPress: () {
                                     if (nombre != plantaBaja) {
                                       setState(() {
