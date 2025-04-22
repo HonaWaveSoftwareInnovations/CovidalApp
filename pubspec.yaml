@@ -74,6 +74,12 @@ flutter:
       - assets/images/guardar.png
       - assets/images/eliminar.png
       - assets/images/agregar.png
+      - assets/images/aluminio.png
+      - assets/images/activo.png
+      - assets/images/inactivo.png
+      - assets/images/listo.png
+      - assets/images/editar.png
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
