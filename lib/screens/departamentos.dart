@@ -1,6 +1,7 @@
 // ... tus imports
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'medidas_departamento.dart';
 
 class DepartamentosPage extends StatefulWidget {
   final String nombrePiso;
@@ -163,7 +164,16 @@ class _DepartamentosPageState extends State<DepartamentosPage> {
         if (esSeleccionado) {
           setState(() => seleccionado = null);
         } else {
-          print('Ir a pantalla del departamento $nombre');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (_) => MedidasDepartamentoPage(
+                    nombrePiso: widget.nombrePiso,
+                    nombreDepartamento: nombre,
+                  ),
+            ),
+          );
         }
       },
       onLongPress: () {
