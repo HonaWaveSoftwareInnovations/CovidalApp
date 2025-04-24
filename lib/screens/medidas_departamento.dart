@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MedidasDepartamentoPage extends StatefulWidget {
   final String nombrePiso;
@@ -16,26 +17,314 @@ class MedidasDepartamentoPage extends StatefulWidget {
 }
 
 class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
-  List<Map<String, String>> aluminio = [
-    {'alto': '', 'ancho': ''},
+  List<Map<String, dynamic>> aluminio = [
+    {'alto': '', 'ancho': '', 'editable': true},
   ];
-  List<Map<String, String>> vidrio = [
-    {'alto': '', 'ancho': ''},
+  List<Map<String, dynamic>> vidrio = [
+    {'alto': '', 'ancho': '', 'editable': true},
   ];
 
   final observacionesAluminio = TextEditingController();
   final observacionesVidrio = TextEditingController();
 
-  String estadoSeleccionado = 'activo';
+  String estadoSeleccionado = 'inactivo'; // Estado inicial
+  bool _guardadoReciente = true;
+  bool _cargandoDatos = false;
+  DateTime? _ultimaModificacion; // 🚨 NUEVA VARIABLE
 
-  void _agregarFila(List<Map<String, String>> lista) {
-    setState(() => lista.add({'alto': '', 'ancho': ''}));
+  DocumentReference get _medidasRef {
+    final pisoId = widget.nombrePiso.toLowerCase().replaceAll(' ', '_');
+    final departamentoId = widget.nombreDepartamento.toLowerCase().replaceAll(
+      ' ',
+      '_',
+    );
+    return FirebaseFirestore.instance
+        .collection('edificios')
+        .doc('principal')
+        .collection('pisos')
+        .doc(pisoId)
+        .collection('departamentos')
+        .doc(departamentoId)
+        .collection('detalles')
+        .doc('medidas');
   }
 
-  void _eliminarFila(List<Map<String, String>> lista, int index) {
-    if (lista.length > 1) {
-      setState(() => lista.removeAt(index));
+  bool _hayCambiosNoGuardados() {
+    return !_guardadoReciente; // NUEVO 🚨
+  }
+
+  String _formatearFecha(DateTime? fecha) {
+    if (fecha == null) return '';
+    return 'Última modificación: ${fecha.day} de ${_mesEnTexto(fecha.month)} de ${fecha.year}, ${_formatoHora(fecha)}';
+  }
+
+  String _mesEnTexto(int mes) {
+    const meses = [
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre',
+    ];
+    return meses[mes - 1];
+  }
+
+  String _formatoHora(DateTime fecha) {
+    final hora = fecha.hour > 12 ? fecha.hour - 12 : fecha.hour;
+    final ampm = fecha.hour >= 12 ? 'pm' : 'am';
+    final minutos = fecha.minute.toString().padLeft(2, '0');
+    return '$hora:$minutos $ampm';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarMedidas();
+    observacionesAluminio.addListener(() {
+      if (!_cargandoDatos) {
+        _guardadoReciente = false;
+      }
+    });
+
+    observacionesVidrio.addListener(() {
+      if (!_cargandoDatos) {
+        _guardadoReciente = false;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    observacionesAluminio.dispose();
+    observacionesVidrio.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cargarMedidas() async {
+    _cargandoDatos = true;
+    final doc = await _medidasRef.get();
+    if (doc.exists) {
+      final data = doc.data() as Map<String, dynamic>;
+      setState(() {
+        estadoSeleccionado = data['estado'] ?? 'inactivo';
+        aluminio = List<Map<String, dynamic>>.from(
+          (data['aluminio'] as List).map(
+            (e) => {...Map<String, dynamic>.from(e), 'editable': false},
+          ),
+        );
+        vidrio = List<Map<String, dynamic>>.from(
+          (data['vidrio'] as List).map(
+            (e) => {...Map<String, dynamic>.from(e), 'editable': false},
+          ),
+        );
+        observacionesAluminio.text = data['observacionesAluminio'] ?? '';
+        observacionesVidrio.text = data['observacionesVidrio'] ?? '';
+
+        // 🚨 NUEVO: obtenemos la fecha del campo 'fechaGuardado'
+        final Timestamp? fecha = data['fechaGuardado'];
+        _ultimaModificacion = fecha?.toDate();
+
+        _guardadoReciente = true;
+      });
     }
+    _cargandoDatos = false;
+  }
+
+  Future<void> _guardarMedidasYActualizarPiso() async {
+    setState(() {
+      for (var fila in aluminio) {
+        fila['editable'] = false;
+      }
+      for (var fila in vidrio) {
+        fila['editable'] = false;
+      }
+    });
+
+    try {
+      await _medidasRef.set({
+        'estado': estadoSeleccionado,
+        'aluminio':
+            aluminio
+                .map((e) => {'alto': e['alto'], 'ancho': e['ancho']})
+                .toList(),
+        'vidrio':
+            vidrio
+                .map((e) => {'alto': e['alto'], 'ancho': e['ancho']})
+                .toList(),
+        'observacionesAluminio': observacionesAluminio.text,
+        'observacionesVidrio': observacionesVidrio.text,
+        'fechaGuardado': FieldValue.serverTimestamp(),
+      });
+      setState(() {
+        _guardadoReciente = true; // NUEVO 🚨
+      });
+
+      final pisoId = widget.nombrePiso.toLowerCase().replaceAll(' ', '_');
+      final departamentosRef = FirebaseFirestore.instance
+          .collection('edificios')
+          .doc('principal')
+          .collection('pisos')
+          .doc(pisoId)
+          .collection('departamentos');
+
+      String nuevoEstadoPiso;
+
+      if (estadoSeleccionado == 'inactivo') {
+        // Si lo pones manualmente en inactivo, respetamos eso.
+        nuevoEstadoPiso = 'inactivo';
+      } else {
+        // Si es activo o listo, aplicamos lógica normal.
+        final departamentosSnapshot = await departamentosRef.get();
+        int totalDepartamentos = 0;
+        int listos = 0;
+        int conMedidas = 0;
+
+        for (final doc in departamentosSnapshot.docs) {
+          final medidasDoc =
+              await doc.reference.collection('detalles').doc('medidas').get();
+          if (medidasDoc.exists) {
+            final data = medidasDoc.data();
+            if (data != null) {
+              conMedidas++;
+              if (data['estado'] == 'listo') {
+                listos++;
+              }
+            }
+          }
+          totalDepartamentos++;
+        }
+
+        nuevoEstadoPiso = 'activo';
+        if (conMedidas == totalDepartamentos && listos == totalDepartamentos) {
+          nuevoEstadoPiso = 'listo';
+        }
+      }
+
+      await FirebaseFirestore.instance
+          .collection('edificios')
+          .doc('principal')
+          .collection('pisos')
+          .doc(pisoId)
+          .update({'estado': nuevoEstadoPiso});
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Guardado y estado del piso actualizado')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+    }
+  }
+
+  Future<void> _guardarSoloEstado() async {
+    try {
+      await _medidasRef.set({
+        'estado': estadoSeleccionado,
+        'aluminio':
+            aluminio
+                .map((e) => {'alto': e['alto'], 'ancho': e['ancho']})
+                .toList(),
+        'vidrio':
+            vidrio
+                .map((e) => {'alto': e['alto'], 'ancho': e['ancho']})
+                .toList(),
+
+        'observacionesAluminio': observacionesAluminio.text,
+        'observacionesVidrio': observacionesVidrio.text,
+        'fechaGuardado': FieldValue.serverTimestamp(),
+      });
+
+      setState(() {
+        _guardadoReciente = true; // NUEVO 🚨
+      });
+
+      // Lógica para actualizar estado del piso igual que antes
+      final pisoId = widget.nombrePiso.toLowerCase().replaceAll(' ', '_');
+      final departamentosRef = FirebaseFirestore.instance
+          .collection('edificios')
+          .doc('principal')
+          .collection('pisos')
+          .doc(pisoId)
+          .collection('departamentos');
+
+      final departamentosSnapshot = await departamentosRef.get();
+      int totalDepartamentos = 0;
+      int listos = 0;
+      int conMedidas = 0;
+
+      for (final doc in departamentosSnapshot.docs) {
+        final medidasDoc =
+            await doc.reference.collection('detalles').doc('medidas').get();
+        if (medidasDoc.exists) {
+          final data = medidasDoc.data();
+          if (data != null) {
+            conMedidas++;
+            if (data['estado'] == 'listo') {
+              listos++;
+            }
+          }
+        }
+        totalDepartamentos++;
+      }
+
+      String nuevoEstadoPiso;
+
+      // Si seleccionas "inactivo", forzar el estado del piso como inactivo también
+      if (estadoSeleccionado == 'inactivo') {
+        nuevoEstadoPiso = 'inactivo';
+      } else {
+        nuevoEstadoPiso = 'activo';
+        if (conMedidas == totalDepartamentos && listos == totalDepartamentos) {
+          nuevoEstadoPiso = 'listo';
+        }
+      }
+
+      await FirebaseFirestore.instance
+          .collection('edificios')
+          .doc('principal')
+          .collection('pisos')
+          .doc(pisoId)
+          .update({'estado': nuevoEstadoPiso});
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Estado "$estadoSeleccionado" guardado correctamente'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al guardar estado: $e')));
+    }
+  }
+
+  void _agregarFila(List<Map<String, dynamic>> lista) {
+    setState(() {
+      lista.add({'alto': '', 'ancho': '', 'editable': true});
+      _guardadoReciente = false; // NUEVO 🚨
+    });
+  }
+
+  void _eliminarFila(List<Map<String, dynamic>> lista, int index) {
+    setState(() {
+      _guardadoReciente = false; // NUEVO 🚨
+      if (lista.length > 1) {
+        lista.removeAt(index);
+      } else {
+        lista[0]['alto'] = '';
+        lista[0]['ancho'] = '';
+        lista[0]['editable'] = true;
+      }
+    });
   }
 
   Widget _buildEstadoButton({
@@ -46,15 +335,14 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
     final bool esSeleccionado = estadoSeleccionado == estado;
 
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         setState(() {
           estadoSeleccionado = estado;
         });
+        await _guardarSoloEstado();
       },
       child: Padding(
-        padding: const EdgeInsets.only(
-          top: 10,
-        ), // 👈 ajusta esto según lo necesites
+        padding: const EdgeInsets.only(top: 10),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -92,6 +380,7 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
   Widget _buildCampo({
     required String initialValue,
     required Function(String) onChanged,
+    required bool editable,
   }) {
     final controller = TextEditingController(text: initialValue);
     controller.selection = TextSelection.collapsed(
@@ -102,11 +391,18 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
       decoration: BoxDecoration(
         border: Border.all(color: Colors.red),
         borderRadius: BorderRadius.circular(10),
-        color: Colors.white,
+        color: editable ? Colors.white : Colors.grey[300],
       ),
       child: TextField(
         controller: controller,
-        onChanged: onChanged,
+        onChanged:
+            editable
+                ? (val) {
+                  onChanged(val);
+                  _guardadoReciente = false; // NUEVO 🚨
+                }
+                : null,
+        enabled: editable,
         decoration: const InputDecoration(
           hintText: '...................',
           border: InputBorder.none,
@@ -115,7 +411,8 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
     );
   }
 
-  Widget _buildFila(int index, List<Map<String, String>> lista) {
+  Widget _buildFila(int index, List<Map<String, dynamic>> lista) {
+    final fila = lista[index];
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -124,8 +421,9 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
           const SizedBox(width: 10),
           Expanded(
             child: _buildCampo(
-              initialValue: lista[index]['alto']!,
-              onChanged: (val) => lista[index]['alto'] = val,
+              initialValue: fila['alto']!,
+              onChanged: (val) => fila['alto'] = val,
+              editable: fila['editable']!,
             ),
           ),
           const SizedBox(width: 5),
@@ -133,30 +431,25 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
           const SizedBox(width: 5),
           Expanded(
             child: _buildCampo(
-              initialValue: lista[index]['ancho']!,
-              onChanged: (val) => lista[index]['ancho'] = val,
+              initialValue: fila['ancho']!,
+              onChanged: (val) => fila['ancho'] = val,
+              editable: fila['editable']!,
             ),
           ),
           const SizedBox(width: 20),
           AnimatedScaleButton(
             onTap: () {
-              // acción futura de editar
+              setState(() {
+                fila['editable'] = true;
+              });
             },
             child: Image.asset('assets/images/editar.png', height: 26),
           ),
           const SizedBox(width: 20),
-          lista.length > 1
-              ? AnimatedScaleButton(
-                onTap: () => _eliminarFila(lista, index),
-                child: Image.asset('assets/images/eliminar.png', height: 30),
-              )
-              : AnimatedScaleButton(
-                onTap: () {}, // no hace nada, solo animación visual
-                child: Opacity(
-                  opacity: 0.3,
-                  child: Image.asset('assets/images/eliminar.png', height: 30),
-                ),
-              ),
+          AnimatedScaleButton(
+            onTap: () => _eliminarFila(lista, index),
+            child: Image.asset('assets/images/eliminar.png', height: 30),
+          ),
         ],
       ),
     );
@@ -164,7 +457,7 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
 
   Widget _buildSeccion({
     required String titulo,
-    required List<Map<String, String>> lista,
+    required List<Map<String, dynamic>> lista,
     required VoidCallback onAgregar,
     required VoidCallback onGuardar,
     required TextEditingController observacionesController,
@@ -208,39 +501,6 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              const SizedBox(width: 120),
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      width: 25,
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'Editar',
-                        style: TextStyle(fontSize: 9),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      width: 36,
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'Eliminar',
-                        style: TextStyle(fontSize: 9),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(width: 2),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
           ...List.generate(lista.length, (index) {
             return _buildFila(index, lista);
           }),
@@ -260,18 +520,6 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
                     width: 1,
                   ),
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color.fromARGB(
-                        255,
-                        104,
-                        25,
-                        25,
-                      ).withOpacity(0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -291,10 +539,9 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
               ),
             ),
           ),
-
-          const SizedBox(height: 0.01),
+          const SizedBox(height: 10),
           const Text('Observaciones', style: TextStyle(fontSize: 16)),
-          const SizedBox(height: 0.01),
+          const SizedBox(height: 4),
           Container(
             height: 47.6,
             padding: const EdgeInsets.all(10),
@@ -333,27 +580,70 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
                   right: 12,
                   top: 40,
                   bottom: 4,
-                ), // 👈 aquí lo ajustas
+                ),
                 child: Row(
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () async {
+                        if (_hayCambiosNoGuardados()) {
+                          final salir = await showDialog<bool>(
+                            context: context,
+                            builder:
+                                (context) => AlertDialog(
+                                  title: const Text('Cambios no guardados'),
+                                  content: const Text(
+                                    'Tienes cambios sin guardar. ¿Estás seguro que quieres salir?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed:
+                                          () =>
+                                              Navigator.of(context).pop(false),
+                                      child: const Text('Cancelar'),
+                                    ),
+                                    TextButton(
+                                      onPressed:
+                                          () => Navigator.of(context).pop(true),
+                                      child: const Text('Salir'),
+                                    ),
+                                  ],
+                                ),
+                          );
+                          if (salir == true) {
+                            Navigator.pop(context);
+                          }
+                        } else {
+                          Navigator.pop(context);
+                        }
+                      },
                     ),
                     const Spacer(),
-                    Text(
-                      '${widget.nombrePiso} - ${widget.nombreDepartamento}',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Column(
+                      children: [
+                        Text(
+                          '${widget.nombrePiso} - ${widget.nombreDepartamento}',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatearFecha(_ultimaModificacion),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
                     ),
+
                     const Spacer(),
                     const SizedBox(width: 40),
                   ],
                 ),
               ),
-
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
@@ -362,7 +652,7 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
                         titulo: 'Aluminio',
                         lista: aluminio,
                         onAgregar: () => _agregarFila(aluminio),
-                        onGuardar: () {},
+                        onGuardar: _guardarMedidasYActualizarPiso,
                         observacionesController: observacionesAluminio,
                         iconoAgregar: 'aluminio.png',
                         fondo: const Color.fromARGB(217, 221, 221, 221),
@@ -376,7 +666,7 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
                           titulo: 'Vidrio',
                           lista: vidrio,
                           onAgregar: () => _agregarFila(vidrio),
-                          onGuardar: () {},
+                          onGuardar: _guardarMedidasYActualizarPiso,
                           observacionesController: observacionesVidrio,
                           iconoAgregar: 'vidrio.png',
                           fondo: const Color(0xFF7EC4FA),
@@ -416,11 +706,7 @@ class _MedidasDepartamentoPageState extends State<MedidasDepartamentoPage> {
                 'inactivo',
                 'listo',
               ].indexOf(estadoSeleccionado),
-              onDestinationSelected: (index) {
-                setState(() {
-                  estadoSeleccionado = ['activo', 'inactivo', 'listo'][index];
-                });
-              },
+
               destinations: [
                 _buildEstadoButton(
                   estado: 'activo',

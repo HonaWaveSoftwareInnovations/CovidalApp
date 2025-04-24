@@ -79,6 +79,7 @@ flutter:
       - assets/images/inactivo.png
       - assets/images/listo.png
       - assets/images/editar.png
+      - assets/images/recargar.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
