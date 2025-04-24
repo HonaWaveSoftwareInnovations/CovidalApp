@@ -33,23 +33,33 @@ class _EdificioPageState extends State<EdificioPage> {
 
     List<Map<String, dynamic>> nuevosPisos = [];
     bool terrazaEstaVisible = false;
+    Map<String, dynamic>? pisoTerraza;
+    Map<String, dynamic>? pisoPlantaBaja;
 
     for (var doc in snapshot.docs) {
       final data = doc.data();
       final nombre = data['nombre'] ?? '';
-      final visible = data['visible'] ?? true;
       final estado = data['estado'] ?? 'inactivo';
 
+      // Ignoramos visible por ahora
+
       if (nombre == terraza) {
-        terrazaEstaVisible = visible;
-      } else if (nombre != plantaBaja) {
-        nuevosPisos.add({'nombre': nombre, 'estado': estado});
+        terrazaEstaVisible = true;
+        pisoTerraza = {'nombre': nombre, 'estado': estado, 'visible': true};
+      } else if (nombre == plantaBaja) {
+        pisoPlantaBaja = {'nombre': nombre, 'estado': estado, 'visible': true};
+      } else {
+        nuevosPisos.add({'nombre': nombre, 'estado': estado, 'visible': true});
       }
     }
 
     setState(() {
       terrazaVisible = terrazaEstaVisible;
-      pisosDinamicos = nuevosPisos;
+      pisosDinamicos = [
+        if (pisoTerraza != null && terrazaVisible) pisoTerraza,
+        ...nuevosPisos,
+        if (pisoPlantaBaja != null) pisoPlantaBaja,
+      ];
     });
   }
 
@@ -68,10 +78,11 @@ class _EdificioPageState extends State<EdificioPage> {
   void _agregarPiso() {
     final nuevoNumero = _obtenerSiguienteNumero();
     setState(() {
-      pisosDinamicos.insert(0, {
+      pisosDinamicos.insert(terrazaVisible ? 1 : 0, {
         'nombre': 'Piso $nuevoNumero',
         'estado': 'inactivo',
       });
+
       _hayCambios = true; // <- NUEVO
     });
   }
@@ -147,11 +158,7 @@ class _EdificioPageState extends State<EdificioPage> {
       await doc.reference.delete();
     }
 
-    final listaParaGuardar = [
-      if (terrazaVisible) {'nombre': terraza, 'estado': 'inactivo'},
-      ...pisosDinamicos,
-      {'nombre': plantaBaja, 'estado': 'inactivo'},
-    ];
+    final listaParaGuardar = pisosDinamicos;
 
     for (int i = 0; i < listaParaGuardar.length; i++) {
       final piso = listaParaGuardar[i];
@@ -188,16 +195,25 @@ class _EdificioPageState extends State<EdificioPage> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context, false),
+                  onPressed:
+                      () =>
+                          Navigator.pop(context, false), // <- Salir SIN guardar
                   child: const Text('Cancelar'),
                 ),
                 ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
+                  onPressed:
+                      () => Navigator.pop(context, true), // <- Guardar y salir
                   child: const Text('Guardar y salir'),
                 ),
               ],
             ),
       );
+
+      if (salir == true) {
+        await _guardarEnFirestore();
+      }
+      // Salir en ambos casos:
+      accion();
 
       if (salir == true) {
         await _guardarEnFirestore();
@@ -214,11 +230,7 @@ class _EdificioPageState extends State<EdificioPage> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> listaParaMostrar = [
-      if (terrazaVisible) {'nombre': terraza, 'estado': 'inactivo'},
-      ...pisosDinamicos,
-      {'nombre': plantaBaja, 'estado': 'inactivo'},
-    ];
+    final List<Map<String, dynamic>> listaParaMostrar = pisosDinamicos;
 
     return Scaffold(
       body: Stack(
@@ -282,11 +294,11 @@ class _EdificioPageState extends State<EdificioPage> {
                                   nombre: nombre,
                                   seleccionado: seleccionado,
                                   esPlantaBaja: nombre == plantaBaja,
-                                  onTap: () {
+                                  onTap: () async {
                                     if (_esSeleccionado(nombre)) {
                                       setState(() => pisoSeleccionado = null);
                                     } else {
-                                      Navigator.push(
+                                      await Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                           builder:
@@ -295,6 +307,9 @@ class _EdificioPageState extends State<EdificioPage> {
                                               ),
                                         ),
                                       );
+
+                                      // 👇 Se recarga la grilla al volver
+                                      await _cargarDesdeFirestore();
                                     }
                                   },
                                   onLongPress: () {
@@ -334,6 +349,12 @@ class _EdificioPageState extends State<EdificioPage> {
                               iconPath: 'assets/images/guardar.png',
                               texto: "Guardar",
                               onTap: _guardarCambios,
+                            ),
+                            const SizedBox(height: 20),
+                            _BotonAccion(
+                              iconPath: 'assets/images/recargar.png',
+                              texto: "Recargar",
+                              onTap: _cargarDesdeFirestore,
                             ),
                           ],
                         ),
