@@ -80,7 +80,10 @@ flutter:
       - assets/images/listo.png
       - assets/images/editar.png
       - assets/images/recargar.png
-
+      - assets/images/agregar-usuario.png
+      - assets/images/borrar-usuario.png
+      - assets/images/editar-usuario.png
+      
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
