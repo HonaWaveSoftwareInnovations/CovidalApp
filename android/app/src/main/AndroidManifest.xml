@@ -2,12 +2,13 @@
     <application
         android:label="covidal"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
 
         <!-- 🔧 Forzar Flutter renderer legacy (evita crashes en emuladores) -->
         <meta-data
             android:name="flutter.renderer"
-            android:value="legacy" />
+            android:value="skia" />
 
         <activity
             android:name=".MainActivity"
