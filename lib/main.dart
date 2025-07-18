@@ -2,10 +2,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'screens/login.dart'; // importa la pantalla que creamos
 import 'screens/home.dart'; // ← nueva pantalla principal
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await initializeDateFormatting('es', null);
   runApp(const MyApp());
 }
 

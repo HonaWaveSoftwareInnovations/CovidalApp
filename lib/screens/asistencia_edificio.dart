@@ -1,12 +1,88 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
-class AsistenciaEdificioPage extends StatelessWidget {
+class AsistenciaEdificioPage extends StatefulWidget {
   const AsistenciaEdificioPage({super.key});
+
+  @override
+  State<AsistenciaEdificioPage> createState() => _AsistenciaEdificioPageState();
+}
+
+class _AsistenciaEdificioPageState extends State<AsistenciaEdificioPage> {
+  final List<Map<String, dynamic>> personal = [];
+  final String fechaFirestore = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  final String fechaVisual = DateFormat(
+    'EEEE d/M/yyyy',
+    'es_ES',
+  ).format(DateTime.now());
+
+  void agregarPersona() {
+    setState(() {
+      personal.add({
+        'nombre': 'Nombre',
+        'presente': false,
+        'hora': TimeOfDay.now(),
+        'editando': false,
+      });
+    });
+  }
+
+  void eliminarPersona(int index) {
+    setState(() {
+      personal.removeAt(index);
+    });
+  }
+
+  void guardarAsistencia() async {
+    final data =
+        personal.map((p) {
+          return {
+            'nombre': p['nombre'],
+            'presente': p['presente'],
+            'hora': p['hora'].format(context),
+          };
+        }).toList();
+
+    await FirebaseFirestore.instance
+        .collection('asistencias')
+        .doc(fechaFirestore)
+        .set({'personal': data});
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Asistencia guardada')));
+  }
+
+  void editarNombre(int index) {
+    setState(() {
+      personal[index]['editando'] = true;
+    });
+  }
+
+  void actualizarNombre(int index, String value) {
+    setState(() {
+      personal[index]['nombre'] = value;
+      personal[index]['editando'] = false;
+    });
+  }
+
+  Future<void> editarHora(int index) async {
+    final nuevaHora = await showTimePicker(
+      context: context,
+      initialTime: personal[index]['hora'],
+    );
+    if (nuevaHora != null) {
+      setState(() {
+        personal[index]['hora'] = nuevaHora;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF008CFF), // fondo azul claro
+      backgroundColor: const Color(0xFF008CFF),
       appBar: AppBar(
         backgroundColor: const Color(0xFF008CFF),
         leading: IconButton(
@@ -18,23 +94,18 @@ class AsistenciaEdificioPage extends StatelessWidget {
       ),
       body: Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                const Text(
                   'Personal',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Martes 1/04/2025',
-                      style: TextStyle(fontSize: 16, color: Colors.white),
-                    ),
-                  ],
+                Text(
+                  fechaVisual,
+                  style: const TextStyle(fontSize: 16, color: Colors.white),
                 ),
               ],
             ),
@@ -71,17 +142,111 @@ class AsistenciaEdificioPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: 8, // Puedes reemplazar con tu lista real
+              itemCount: personal.length,
               itemBuilder: (context, index) {
-                return const AsistenciaItem();
+                final persona = personal[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      // Nombre
+                      Expanded(
+                        flex: 3,
+                        child:
+                            persona['editando']
+                                ? TextField(
+                                  autofocus: true,
+                                  onSubmitted:
+                                      (value) => actualizarNombre(index, value),
+                                  decoration: InputDecoration(
+                                    hintText: 'Nombre',
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                      borderSide: const BorderSide(
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                : Container(
+                                  height: 40,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Colors.blueGrey, Colors.blue],
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: Colors.red),
+                                  ),
+                                  child: Text(
+                                    persona['nombre'],
+                                    style: const TextStyle(color: Colors.black),
+                                  ),
+                                ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Presente
+                      Checkbox(
+                        value: persona['presente'],
+                        activeColor: Colors.green,
+                        onChanged: (val) {
+                          setState(() {
+                            persona['presente'] = val!;
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 4),
+
+                      // Hora
+                      Expanded(
+                        flex: 2,
+                        child: GestureDetector(
+                          onTap: () => editarHora(index),
+                          child: Container(
+                            height: 35,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.red),
+                            ),
+                            child: Text(persona['hora'].format(context)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Editar
+                      IconButton(
+                        icon: Image.asset(
+                          'assets/images/editar-usuario.png',
+                          width: 22,
+                          height: 22,
+                        ),
+                        onPressed: () => editarNombre(index),
+                      ),
+
+                      // Eliminar
+                      IconButton(
+                        icon: Image.asset(
+                          'assets/images/borrar-usuario.png',
+                          width: 23,
+                          height: 23,
+                        ),
+                        onPressed: () => eliminarPersona(index),
+                      ),
+                    ],
+                  ),
+                );
               },
             ),
           ),
-
           Container(
             width: double.infinity,
             height: 14,
@@ -91,9 +256,7 @@ class AsistenciaEdificioPage extends StatelessWidget {
           Column(
             children: [
               AnimatedScaleButton(
-                onTap: () {
-                  // Acción de agregar
-                },
+                onTap: agregarPersona,
                 child: Column(
                   children: [
                     Image.asset(
@@ -112,9 +275,7 @@ class AsistenciaEdificioPage extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: AnimatedScaleButton(
-                  onTap: () {
-                    // Acción de guardar
-                  },
+                  onTap: guardarAsistencia,
                   child: Container(
                     height: 50,
                     decoration: BoxDecoration(
@@ -148,86 +309,7 @@ class AsistenciaEdificioPage extends StatelessWidget {
   }
 }
 
-class AsistenciaItem extends StatelessWidget {
-  const AsistenciaItem({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          // Nombre
-          Expanded(
-            flex: 3,
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Colors.blueGrey, Colors.blue],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.red, width: 1), // Borde rojo
-              ),
-              alignment: Alignment.center,
-              child: const Text(
-                'Nombre',
-                style: TextStyle(color: Color.fromARGB(255, 3, 3, 3)),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // Icono presente
-          const Icon(Icons.check_circle, color: Colors.green, size: 24),
-          const SizedBox(width: 8),
-
-          // Campo de hora
-          Expanded(
-            flex: 2,
-            child: Container(
-              height: 35,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.red, width: 1), // Borde rojo
-              ),
-              child: const Text('.....', style: TextStyle(fontSize: 14)),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // Editar
-          IconButton(
-            icon: Image.asset(
-              'assets/images/editar-usuario.png',
-              width: 22,
-              height: 22,
-            ),
-            onPressed: () {
-              // Acción editar
-            },
-          ),
-
-          // Eliminar
-          IconButton(
-            icon: Image.asset(
-              'assets/images/borrar-usuario.png',
-              width: 23,
-              height: 23,
-            ),
-            onPressed: () {
-              // Acción eliminar
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Widget reutilizable con animación de escala al presionar
+// Botón animado reutilizable
 class AnimatedScaleButton extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;
